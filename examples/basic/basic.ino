@@ -2,18 +2,25 @@
 #define IEEE754_4BYTE_PRECISION	// comment out if there is double precision support on the device 
 #include "Thunderbolt.h"
 
-// use hw serial 2
-Thunderbolt tbolt(&Serial2);
+// ---------------------------
+// Devices 
+// ---------------------------
+Thunderbolt tbolt(&Serial2); // Use HardwareSerial #2 (pass by reference)
 
+// ---------------------------
+// Globals
+// ---------------------------
 GPSStatus prevStatus;
 GPSTime prevTime;
 
+// Display version info
 void display_version(GPSVersion ver) {
-	char buf[64];
-	sprintf(buf, "Thunderbolt version: app:%d.%02d core:%d.%02d\n", ver.app.major_ver, ver.app.minor_ver, ver.core.major_ver, ver.core.minor_ver);
+	char buf[50];
+	sprintf(buf, "Thunderbolt ver: app:%d.%02d core:%d.%02d\n", ver.app.major_ver, ver.app.minor_ver, ver.core.major_ver, ver.core.minor_ver);
 	Serial.print(buf);
 }
 
+// Display status
 void display_status(GPSStatus s) {
 	Serial.print("Status: ");
 	Serial.print(s.rcvr_status);
@@ -29,7 +36,7 @@ void display_status(GPSStatus s) {
 	Serial.println((s.minor_alarms) ? " (Minor Alarm!)" : "");
 }
 
-
+// Display UTC time
 void displayTime(GPSTime t) {
 	char buf[20];
 	sprintf(buf, "time: %02d:%02d:%02d\n", t.hours, t.minutes, t.seconds);
@@ -66,7 +73,7 @@ void loop()
 	}
 }
 
-// use built-in serial event (for hardware serial), called once each loop when serial data is available to be read
+// Use handy built-in serial event (hardware serial only), NOT interrupt driven, called once each loop when serial data is available
 void serialEvent2() {
 	tbolt.readSerial(); // Thunderbolt class serial in
 }
