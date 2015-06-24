@@ -1,6 +1,8 @@
 Thunderbolt
 ==========
-Thunderbolt is an [Arduino](http://arduino.cc) library for interacting with a Trimble Thunderbolt or other TSIP-based GPS and timing units.
+Thunderbolt is an [Arduino](http://arduino.cc) library for interacting with a Trimble Thunderbolt or other TSIP-based GPS and timing units. The libary can configure and read asynchronous TSIP primary and secondary timing packets. The library is structured and has primatives to support sending and parsing TSIP in general.  
+
+The library code is in-part derived from the great Lady Heather work by Mark Sims, John Miles and Tom Van Baak.  Please note this is not a "complete" Lady Heather-like implementation, but the structure and primative functionality is there to advance it to that point.
 
 Install
 -------
