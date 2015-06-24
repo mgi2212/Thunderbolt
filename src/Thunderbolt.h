@@ -66,7 +66,7 @@ public:
 
 	int  readDataBytes(uint8_t *dst, int n);
 	void writeDataBytes(const uint8_t *bytes, int n);
-	bool begin();
+	bool flush();
 	void beginCommand(CommandID cmd);
 	void endCommand();
 	void readSerial();

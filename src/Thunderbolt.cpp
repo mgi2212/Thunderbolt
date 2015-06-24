@@ -1,5 +1,5 @@
 //  @brief
-// Arduino Thunderbolt support This library is designed to handle asynchonous (broadcast) TSIP packets from a Trimble Thunderbolt
+// Arduino Thunderbolt support This library is designed to handle asynchronous (broadcast) TSIP packets from a Trimble Thunderbolt
 #include "Thunderbolt.h"
 
 Thunderbolt::Thunderbolt(Stream* _serial) : m_n_listeners(0)
@@ -8,7 +8,7 @@ Thunderbolt::Thunderbolt(Stream* _serial) : m_n_listeners(0)
 }
 
 
-bool Thunderbolt::begin()
+bool Thunderbolt::flush()
 {
 	if (m_serial == NULL) {
 		DEBUG_PRINT("No serial port defined...");
@@ -415,9 +415,9 @@ bool Thunderbolt::process_satellites()
 
 bool Thunderbolt::process_time() {
 	rcv_packet.getNextByte(); // waste the subcode
-	m_time.time_of_week.bits = rcv_packet.getNextDWord();
+	m_time.time_of_week = rcv_packet.getNextDWord();
 	m_time.week_no = rcv_packet.getNextWord();
-	m_time.utc_offs.bits = rcv_packet.getNextWord();
+	m_time.utc_offs = rcv_packet.getNextWord();
 	m_time.timing_flags = rcv_packet.getNextByte();
 
 	m_time.seconds = rcv_packet.getNextByte();
@@ -532,9 +532,9 @@ bool Thunderbolt::process_v_ENU() {
 
 bool Thunderbolt::process_primary_timing() {
 	DEBUG_PRINT(__FUNCTION__);
-	m_time.time_of_week.f = rcv_packet.getNextFloat();
+	m_time.time_of_week = rcv_packet.getNextFloat();
 	m_time.week_no = rcv_packet.getNextWord();
-	m_time.utc_offs.f = rcv_packet.getNextFloat();
+	m_time.utc_offs = rcv_packet.getNextFloat();
 	return true;
 }
 

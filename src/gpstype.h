@@ -674,16 +674,16 @@ protected:
 struct GPSTime {				// 8F.AB
 	GPSTime();
 
-	Float32 time_of_week;
-	int16_t week_no;
-	Float32 utc_offs;
-	int8_t timing_flags;
-	int8_t seconds;
-	int8_t minutes;
-	int8_t hours;
-	int8_t day;
-	int8_t month;
-	int16_t year;
+	uint32_t time_of_week;
+	uint16_t week_no;
+	int16_t utc_offs;			// signed int!
+	uint8_t timing_flags;
+	uint8_t seconds;
+	uint8_t minutes;
+	uint8_t hours;
+	uint8_t day;
+	uint8_t month;
+	uint16_t year;
 
 	bool operator ==(const GPSTime& x) {
 		return ((x.seconds == this->seconds) ||
