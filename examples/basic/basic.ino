@@ -20,11 +20,11 @@ void display_status(GPSStatus s) {
 	Serial.print(" Mode = ");
 	Serial.print(s.rcvr_mode);
 	Serial.print(" Lat = ");
-	Serial.print(s.latitude.value.d * RAD_TO_DEG);
+	Serial.print(s.latitude * RAD_TO_DEG);
 	Serial.print(" Lng = ");
-	Serial.print(s.longitude.value.d * RAD_TO_DEG);
+	Serial.print(s.longitude * RAD_TO_DEG);
 	Serial.print(" Alt = ");
-	Serial.print(s.altitude.value.d * METERS_TO_FEET);
+	Serial.print(s.altitude * METERS_TO_FEET);
 	Serial.print((s.critical_alarms) ? " (Critical Alarm!)" : "");
 	Serial.println((s.minor_alarms) ? " (Minor Alarm!)" : "");
 }

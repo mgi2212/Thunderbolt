@@ -137,12 +137,12 @@ uint64_t TsipPacket::getNextDoubleDWord()
 //  Retrieves the next 4-byte (Single) precision value from the packet buffer.
 //  </summary>
 //  <returns>single</returns>
-Float32 TsipPacket::getNextFloat()
+float TsipPacket::getNextFloat()
 {
 	Float32 retval;
 	copy_network_order(&retval, &packet_data[counter]);
 	counter += sizeof(Float32);
-	return retval;
+	return retval.f;
 }
 
 float TsipPacket::getPacketFloat(uint8_t index) const
@@ -156,7 +156,7 @@ float TsipPacket::getPacketFloat(uint8_t index) const
 //  Converts to 4-byte precision if 8-byte is unavailable
 //  </summary>
 //  <returns>double</returns>
-Float64 TsipPacket::getNextDouble()
+double TsipPacket::getNextDouble()
 {
 	Float64 retval;
 #ifdef IEEE754_4BYTE_PRECISION
@@ -171,7 +171,7 @@ Float64 TsipPacket::getNextDouble()
 	copy_network_order(&retval, &packet_data[counter]);
 #endif
 	counter += sizeof(Float64);
-	return retval;
+	return retval.value.d;
 }
 
 double TsipPacket::getPacketDouble(uint8_t index)  const

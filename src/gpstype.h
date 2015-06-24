@@ -723,19 +723,19 @@ struct GPSStatus {
 	uint32_t holdover_duration;				// 8F.AC seconds
 	uint16_t critical_alarms;				// 8F.AC bitfield
 	uint16_t minor_alarms;					// 8F.AC bitfield
-	Float32 pps_offset;						// 8F.AC estimate of UTC/GPS in ns
-	Float32 mhz_offset;						// 8F.AC estimate of UTC/GPS in ppb
+	float pps_offset;						// 8F.AC estimate of UTC/GPS in ns
+	float mhz_offset;						// 8F.AC estimate of UTC/GPS in ppb
 	uint32_t dac_value;						// 8F.AC offset binary (0x00 - 0xFFFFF)
-	Float32 dac_voltage;					// 8F.AC volts
-	Float32 temperature;					// 8F.AC degrees C
-	Float64 latitude;						// 8F.AC radians
-	Float64 longitude;						// 8F.AC radians
-	Float64 altitude;						// 8F.AC meters
+	float dac_voltage;						// 8F.AC volts
+	float temperature;						// 8F.AC degrees C
+	double latitude;						// 8F.AC radians
+	double longitude;						// 8F.AC radians
+	double altitude;						// 8F.AC meters
 
 	bool operator ==(const GPSStatus& x) {
-		return ((x.altitude.bits == this->altitude.bits) ||
-			(x.longitude.bits == this->longitude.bits) ||
-			(x.latitude.bits == this->latitude.bits) ||
+		return ((x.altitude == this->altitude) ||
+			(x.longitude == this->longitude) ||
+			(x.latitude == this->latitude) ||
 			(x.rcvr_mode == this->rcvr_mode) ||
 			(x.rcvr_status == this->rcvr_status) ||
 			(x.critical_alarms == this->critical_alarms) ||
@@ -743,9 +743,9 @@ struct GPSStatus {
 	}
 
 	bool operator !=(const GPSStatus& x) {
-		return ((x.altitude.bits != this->altitude.bits) ||
-			(x.longitude.bits != this->longitude.bits) ||
-			(x.latitude.bits != this->latitude.bits) ||
+		return ((x.altitude != this->altitude) ||
+			(x.longitude != this->longitude) ||
+			(x.latitude != this->latitude) ||
 			(x.rcvr_mode != this->rcvr_mode) ||
 			(x.rcvr_status != this->rcvr_status) ||
 			(x.critical_alarms != this->critical_alarms) ||

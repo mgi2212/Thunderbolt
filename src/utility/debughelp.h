@@ -12,7 +12,6 @@
 #define DEBUG_PRINTDEC(T, v) {Serial.print(T); Serial.println(v, DEC);}
 #define DEBUG_HALT() {while(Serial.available() == 0); Serial.setTimeout(1); Serial.readBytes(sDebug, 1);}
 
-
 #else
 
 #define DEBUG_BEGIN(...)

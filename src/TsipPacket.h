@@ -52,8 +52,8 @@ protected:
 	uint16_t getNextWord();
 	uint32_t getNextDWord();
 	uint64_t getNextDoubleDWord();
-	Float32 getNextFloat();
-	Float64 getNextDouble();
+	float getNextFloat();
+	double getNextDouble();
 	void clear();
 
 public:

@@ -458,11 +458,11 @@ bool Thunderbolt::process_p_LLA_32() {
 	DEBUG_PRINT(__FUNCTION__);
 	m_pfix.type = RPT_FIX_POS_LLA_32;
 	LLA_Fix<Float32> *fix = &m_pfix.lla_32;
-	fix->lat = rcv_packet.getNextFloat();
-	fix->lng = rcv_packet.getNextFloat();
-	fix->alt = rcv_packet.getNextFloat();
-	fix->bias = rcv_packet.getNextFloat();
-	fix->fixtime = rcv_packet.getNextFloat();
+	fix->lat.f = rcv_packet.getNextFloat();
+	fix->lng.f = rcv_packet.getNextFloat();
+	fix->alt.f = rcv_packet.getNextFloat();
+	fix->bias.f = rcv_packet.getNextFloat();
+	fix->fixtime.f = rcv_packet.getNextFloat();
 	return true;
 }
 
@@ -470,11 +470,11 @@ bool Thunderbolt::process_p_LLA_64() {
 	DEBUG_PRINT(__FUNCTION__);
 	m_pfix.type = RPT_FIX_POS_LLA_64;
 	LLA_Fix<Float64> *fix = &m_pfix.lla_64;
-	fix->lat = rcv_packet.getNextDouble();
-	fix->lng = rcv_packet.getNextDouble();
-	fix->alt = rcv_packet.getNextDouble();
-	fix->bias = rcv_packet.getNextDouble();
-	fix->fixtime = rcv_packet.getNextFloat(); // fixtime is always a 4-byte float
+	fix->lat.value.d = rcv_packet.getNextDouble();
+	fix->lng.value.d = rcv_packet.getNextDouble();
+	fix->alt.value.d = rcv_packet.getNextDouble();
+	fix->bias.value.d = rcv_packet.getNextDouble();
+	fix->fixtime.f = rcv_packet.getNextFloat(); // fixtime is always a 4-byte float
 	return true;
 }
 
@@ -483,11 +483,11 @@ bool Thunderbolt::process_p_XYZ_32() {
 	m_pfix.type = RPT_FIX_POS_XYZ_32;
 	XYZ_Fix<Float32> *fix = &m_pfix.xyz_32;
 
-	fix->x = rcv_packet.getNextFloat();
-	fix->y = rcv_packet.getNextFloat();
-	fix->z = rcv_packet.getNextFloat();
-	fix->bias = rcv_packet.getNextFloat();
-	fix->fixtime = rcv_packet.getNextFloat();
+	fix->x.f = rcv_packet.getNextFloat();
+	fix->y.f = rcv_packet.getNextFloat();
+	fix->z.f = rcv_packet.getNextFloat();
+	fix->bias.f = rcv_packet.getNextFloat();
+	fix->fixtime.f = rcv_packet.getNextFloat();
 	return true;
 }
 
@@ -496,11 +496,11 @@ bool Thunderbolt::process_p_XYZ_64() {
 	m_pfix.type = RPT_FIX_POS_XYZ_64;
 	XYZ_Fix<Float64> *fix = &m_pfix.xyz_64;
 
-	fix->x = rcv_packet.getNextDouble();
-	fix->y = rcv_packet.getNextDouble();
-	fix->z = rcv_packet.getNextDouble();
-	fix->bias = rcv_packet.getNextDouble();
-	fix->fixtime = rcv_packet.getNextFloat(); // fixtime is always a 4-byte float
+	fix->x.value.d = rcv_packet.getNextDouble();
+	fix->y.value.d = rcv_packet.getNextDouble();
+	fix->z.value.d = rcv_packet.getNextDouble();
+	fix->bias.value.d = rcv_packet.getNextDouble();
+	fix->fixtime.f = rcv_packet.getNextFloat(); // fixtime is always a 4-byte float
 	return true;
 }
 
@@ -509,11 +509,11 @@ bool Thunderbolt::process_v_XYZ() {
 	m_vfix.type = RPT_FIX_VEL_XYZ;
 	XYZ_VFix *fix = &m_vfix.xyz;
 
-	fix->x = rcv_packet.getNextFloat();
-	fix->y = rcv_packet.getNextFloat();
-	fix->z = rcv_packet.getNextFloat();
-	fix->bias = rcv_packet.getNextFloat();
-	fix->fixtime = rcv_packet.getNextFloat();
+	fix->x.f = rcv_packet.getNextFloat();
+	fix->y.f = rcv_packet.getNextFloat();
+	fix->z.f = rcv_packet.getNextFloat();
+	fix->bias.f = rcv_packet.getNextFloat();
+	fix->fixtime.f = rcv_packet.getNextFloat();
 	return true;
 }
 
@@ -522,19 +522,19 @@ bool Thunderbolt::process_v_ENU() {
 	m_vfix.type = RPT_FIX_VEL_ENU;
 	ENU_VFix *fix = &m_vfix.enu;
 
-	fix->e = rcv_packet.getNextFloat();
-	fix->n = rcv_packet.getNextFloat();
-	fix->u = rcv_packet.getNextFloat();
-	fix->bias = rcv_packet.getNextFloat();
-	fix->fixtime = rcv_packet.getNextFloat();
+	fix->e.f = rcv_packet.getNextFloat();
+	fix->n.f = rcv_packet.getNextFloat();
+	fix->u.f = rcv_packet.getNextFloat();
+	fix->bias.f = rcv_packet.getNextFloat();
+	fix->fixtime.f = rcv_packet.getNextFloat();
 	return true;
 }
 
 bool Thunderbolt::process_primary_timing() {
 	DEBUG_PRINT(__FUNCTION__);
-	m_time.time_of_week = rcv_packet.getNextFloat();
+	m_time.time_of_week.f = rcv_packet.getNextFloat();
 	m_time.week_no = rcv_packet.getNextWord();
-	m_time.utc_offs = rcv_packet.getNextFloat();
+	m_time.utc_offs.f = rcv_packet.getNextFloat();
 	return true;
 }
 
