@@ -24,7 +24,6 @@ communicate.
 #include "chunk.h"
 #include "gpstype.h"
 #include "TsipPacket.h"
-//#include "TBoltSerialPort.h"
 
 class Thunderbolt; // fwd decl
 
