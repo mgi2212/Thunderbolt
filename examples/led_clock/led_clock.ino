@@ -1,26 +1,15 @@
-
-
-//#include "TBoltHWSerialPort.h"	// remove comments to use hardware serial ports 
-
-#ifndef _TBOLT_HW_SERIALPORT_h
-#include <SoftwareSerial.h>		// Thunderbolt library to use software serial ports. (on the Due the SoftwareSerial library is not available)
-#include "TBoltSWSerialPort.h"
-#endif
+// demonstrats how to use a software serial port with the Thunderbolt library.
+// requires the LedControl library
 
 #define IEEE754_4BYTE_PRECISION	// comment out if there is double precision support on the device 
 #include "Thunderbolt.h"
 
-#ifndef _TBOLT_HW_SERIALPORT_h
+#include <SoftwareSerial.h>		// Thunderbolt library to use software serial ports. (on the Due the SoftwareSerial library is not available)
 #define TX_PIN 3
 #define RX_PIN 4
-SoftwareSerial _port(RX_PIN, TX_PIN, false); // RX, TX
-TBoltSWSerialPort s_port(&_port);
-Thunderbolt tbolt = Thunderbolt(&s_port);
-#else
-#define TBOLT_SERIAL_PORT 2  // remove comment and set correct port number to use hw serial
-TBoltHWSerialPort s_port(TBOLT_SERIAL_PORT);
-Thunderbolt tbolt = Thunderbolt(&s_port);
-#endif
+SoftwareSerial s_port(RX_PIN, TX_PIN, false);	// Initialize serial port
+
+Thunderbolt tbolt = Thunderbolt(&s_port);		// Intialize Thunderbolt
 
 // clock display macros
 #define ONES(x) (x % 10)
@@ -88,6 +77,8 @@ void setup_display() {
 
 void setup() {
 	Serial.begin(115200);
+	s_port.begin(TSIP_BAUD_RATE);
+
 	setup_display();
 	tbolt.begin();
 	if (tbolt.getSoftwareVersionInfo() == false) // this call is synchronous (waits for a response - but will timeout)
@@ -102,12 +93,11 @@ void setup() {
 
 void loop()
 {
-
-#ifdef SoftwareSerial_h
+	// read from the Thunderbolt when data is available
 	if (s_port.available()) {
-		softSerialEvent();
+		tbolt.readSerial();
 	}
-#endif
+
 	GPSStatus s = tbolt.getStatus();
 	if (prevStatus != s) {
 		display_status(s);
@@ -120,25 +110,3 @@ void loop()
 		prevTime = t;
 	}
 }
-
-#ifdef SoftwareSerial_h
-void softSerialEvent() {
-	tbolt.readSerial();
-}
-#elif TBOLT_SERIAL_PORT == 1
-void serialEvent1() {
-	tbolt.readSerial(); // Thunderbolt class serial in
-}
-#elif TBOLT_SERIAL_PORT == 2
-void serialEvent2() {
-	tbolt.readSerial(); // Thunderbolt class serial in
-}
-#elif TBOLT_SERIAL_PORT == 3
-void serialEvent3() {
-	tbolt.readSerial(); // Thunderbolt class serial in
-}
-#elif TBOLT_SERIAL_PORT == 4
-void serialEvent4() {
-	tbolt.readSerial(); // Thunderbolt class serial in
-}
-#endif

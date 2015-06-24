@@ -24,7 +24,7 @@ communicate.
 #include "chunk.h"
 #include "gpstype.h"
 #include "TsipPacket.h"
-#include "TBoltSerialPort.h"
+//#include "TBoltSerialPort.h"
 
 class Thunderbolt; // fwd decl
 
@@ -52,9 +52,10 @@ class Thunderbolt
 {
 public:
 
-	Thunderbolt(TBoltSerialPort* tbolt_serial);
+	Thunderbolt(Stream* _serial);
+	//Thunderbolt(int serial_num);
 
-	TBoltSerialPort*	getSerial();
+	Stream*	getSerial();
 	bool getSoftwareVersionInfo();
 	bool setFixMode(ReportType pos_fixmode, ReportType vel_fixmode, AltMode alt = ALT_NOCHANGE, PPSMode pps = PPS_NOCHANGE, GPSTimeMode time = TME_NOCHANGE);
 	bool setPacketBroadcastMask(uint8_t mask);
@@ -78,7 +79,7 @@ public:
 
 private:
 
-	TBoltSerialPort* m_serial;
+	Stream* m_serial;
 	int m_serial_num;
 
 	bool block_with_timeout();

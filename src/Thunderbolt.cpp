@@ -1,9 +1,8 @@
-// Arduino Thunderbolt support This library is designed to handle asnychonous (broadcast) TSIP
-// packets from a Trimble Thunderbolt
-
+//  @brief
+// Arduino Thunderbolt support This library is designed to handle asynchonous (broadcast) TSIP packets from a Trimble Thunderbolt
 #include "Thunderbolt.h"
 
-Thunderbolt::Thunderbolt(TBoltSerialPort* _serial) : m_n_listeners(0)
+Thunderbolt::Thunderbolt(Stream* _serial) : m_n_listeners(0)
 {
 	m_serial = _serial;
 }
@@ -15,7 +14,6 @@ bool Thunderbolt::begin()
 		DEBUG_PRINT("No serial port defined...");
 		return false;
 	}
-	m_serial->begin(TSIP_BAUD_RATE);
 	m_serial->flush();
 	return true;
 }
@@ -568,10 +566,9 @@ const GPSVersion& Thunderbolt::getVersion() const {
 	return m_version;
 }
 
-TBoltSerialPort* Thunderbolt::getSerial() {
+Stream* Thunderbolt::getSerial() {
 	return m_serial;
 }
-
 
 /**
 * Get the status and health of the reciever.

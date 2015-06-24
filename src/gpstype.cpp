@@ -1,5 +1,5 @@
-
-//#include <cstddef>
+//  @brief
+// Arduino Thunderbolt GPS types
 #include "gpstype.h"
 
 #ifndef NULL
