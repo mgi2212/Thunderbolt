@@ -9,7 +9,7 @@
 #define RX_PIN 4
 SoftwareSerial s_port(RX_PIN, TX_PIN, false);	// Initialize serial port
 
-Thunderbolt tbolt = Thunderbolt(&s_port);		// Intialize Thunderbolt
+Thunderbolt tbolt(&s_port);						// Intialize Thunderbolt
 
 // clock display macros
 #define ONES(x) (x % 10)

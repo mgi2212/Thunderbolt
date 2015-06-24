@@ -3,7 +3,7 @@
 #include "Thunderbolt.h"
 
 // use hw serial 2
-Thunderbolt tbolt = Thunderbolt(&Serial2);
+Thunderbolt tbolt(&Serial2);
 
 GPSStatus prevStatus;
 GPSTime prevTime;
