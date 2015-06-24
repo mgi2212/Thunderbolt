@@ -12,4 +12,4 @@ Examples
 --------
 basic - Illustrates how to use hardware serial ports (like those on Due and Mega boards) with the Thunderbolt library. Displays UTC time 1pps using serial print. 
 
-led_clock - Demonstrats how to use a software serial port with the Thunderbolt library. Displays UTC time on a 8-digit 7-segment SPI display. Requires LedControl library if you wish to retain the display feature.
+led_clock - Demonstrates how to use a software serial port with the Thunderbolt library. Displays UTC time on a 8-digit 7-segment SPI display. Requires LedControl library if you wish to retain the display feature.
