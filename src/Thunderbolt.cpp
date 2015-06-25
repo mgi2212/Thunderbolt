@@ -431,6 +431,7 @@ bool Thunderbolt::process_time() {
 
 bool Thunderbolt::process_supplemental_timing()
 {
+	DEBUG_PRINT(__FUNCTION__);
 	rcv_packet.getNextByte(); // waste the subcode
 	m_status.rcvr_mode = static_cast<ReceiverMode>(rcv_packet.getNextByte());
 	m_status.disc_mode = (DiscipliningMode)rcv_packet.getNextByte();

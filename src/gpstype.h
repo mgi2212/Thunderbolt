@@ -10,7 +10,7 @@
 #ifndef GPSTYPE_H
 #define	GPSTYPE_H
 
-#define IEEE754_4BYTE_PRECISION
+//#define IEEE754_4BYTE_PRECISION
 
 #include <stdint.h>
 #include <float.h>
@@ -428,8 +428,10 @@ enum DiscipliningActivity
  * storage types           *
  ***************************/
 
-// many/most arduino chipsets do not support 64 bit floats,
-// but we still need to be able to store the bits of a 64-bit float somehow.
+// many/most arduino chipsets do not support 64 bit floats, 
+// but we still need to store the bits of a 64-bit float and convert them.
+
+#pragma pack(4)		// set 4-byte alignment
 
 // IEEE754 float layout;
 struct IEEEfloat {

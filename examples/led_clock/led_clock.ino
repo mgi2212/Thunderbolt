@@ -91,7 +91,7 @@ void setup() {
 	s_port.begin(TSIP_BAUD_RATE);
 
 	setup_display();
-	
+
 	tbolt.flush();
 	if (tbolt.getSoftwareVersionInfo() == false) {// Synchronous (sends, waits for a response, will retry 5x then timeout)
 		Serial.println("Unable to start Thunderbolt, nothing more to do.");
