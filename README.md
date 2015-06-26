@@ -19,8 +19,6 @@ Before you attempt to run the examples, please be sure to install the library us
 
 [led_clock](./examples/led_clock) - Demonstrates how to use a software serial port with the Thunderbolt library. Displays UTC time on a 8-digit 7-segment SPI display. Requires LedControl library if you wish to retain the display feature.
 
-## Need Help?
-
 ## Contribute Code or Provide Feedback
 
 If you would like to become an active contributor to this project please send a request.
