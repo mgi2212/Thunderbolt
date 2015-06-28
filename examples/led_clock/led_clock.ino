@@ -36,7 +36,7 @@ GPSTime prevTime;
 // ---------------------------
 LedControl primary_display = LedControl(LED_DIN, LED_CLK, LED_LOAD, LED_DEVICE_COUNT);
 SoftwareSerial s_port(RX_PIN, TX_PIN, false);	// Initialize serial port
-Thunderbolt tbolt(&s_port);						// Intialize Thunderbolt (pass serial port by ref)
+Thunderbolt tbolt(s_port);						// Intialize Thunderbolt serial port
 
 // Display version info
 void display_version(GPSVersion ver) {

@@ -2,9 +2,9 @@
 // Arduino Thunderbolt support This library is designed to handle asynchronous (broadcast) TSIP packets from a Trimble Thunderbolt
 #include "Thunderbolt.h"
 
-Thunderbolt::Thunderbolt(Stream* _serial) : m_n_listeners(0)
+Thunderbolt::Thunderbolt(Stream& _serial) : m_n_listeners(0)
 {
-	m_serial = _serial;
+	m_serial = &_serial;
 }
 
 

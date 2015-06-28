@@ -5,7 +5,7 @@
 // ---------------------------
 // Devices 
 // ---------------------------
-Thunderbolt tbolt(&Serial2); // Use HardwareSerial #2 (pass by reference)
+Thunderbolt tbolt(Serial2); // Use HardwareSerial #2 
 
 // ---------------------------
 // Globals

@@ -51,7 +51,7 @@ class Thunderbolt
 {
 public:
 
-	Thunderbolt(Stream* _serial);
+	Thunderbolt(Stream& _serial);
 	Stream*	getSerial();
 	bool getSoftwareVersionInfo();
 	bool setFixMode(ReportType pos_fixmode, ReportType vel_fixmode, AltMode alt = ALT_NOCHANGE, PPSMode pps = PPS_NOCHANGE, GPSTimeMode time = TME_NOCHANGE);
