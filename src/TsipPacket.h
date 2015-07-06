@@ -39,7 +39,7 @@ class TsipPacket
 {
 private:
 	short counter;						// counter for data retrieval functions
-	uint8_t packet_data[MAX_RPTBUF];	// TSIP data packet
+	uint8_t *packet_data;	// TSIP data packet
 
 protected:
 	size_t length;						// received byte count < MAX_RPTBUF
@@ -58,6 +58,8 @@ protected:
 
 public:
 	TsipPacket();
+	TsipPacket(int size);
+	~TsipPacket();
 
 	bool isComplete() const;
 	size_t getLength() const;

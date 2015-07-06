@@ -8,10 +8,25 @@
 // FullName:  TsipPacket::TsipPacket
 // Access:    public
 //************************************
-TsipPacket::TsipPacket()
+TsipPacket::TsipPacket(int size)
 {
+	packet_data = (uint8_t *)malloc(size);
 	clear();
 }
+
+TsipPacket::TsipPacket()
+{
+	packet_data = (uint8_t *)malloc(MAX_RPTBUF);
+	clear();
+}
+
+
+TsipPacket::~TsipPacket()
+{
+	if (packet_data)
+		free(packet_data);
+}
+
 
 //************************************
 // Method:    clear

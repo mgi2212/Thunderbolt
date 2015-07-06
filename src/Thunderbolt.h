@@ -1,8 +1,7 @@
-
 /***************************************************
-This is a library for the Trimble Thunderbolt 
-The unit uses either Hardware or software serial ports to 
-communicate. 
+This is a library for the Trimble Thunderbolt
+The unit uses either Hardware or software serial ports to
+communicate.
 ****************************************************/
 #ifndef _THUNDERBOLT_H
 #define _THUNDERBOLT_H
@@ -12,8 +11,6 @@ communicate.
 #else
 #include "WProgram.h"
 #endif
-
-
 #define MAX_PKT_PROCESSORS 8
 #define SERIAL_TIMEOUT 2000 // 2 seconds max wait for serial data
 #define TSIP_BAUD_RATE 9600
@@ -21,11 +18,20 @@ communicate.
 
 #include "utility\debughelp.h"
 #include <assert.h>
+#include <Time.h>
 #include "chunk.h"
 #include "gpstype.h"
 #include "TsipPacket.h"
+#include "ITimeSource.h"
 
-class Thunderbolt; // fwd decl
+// The epoch year
+static const int EPOCH_YEAR = 1900;
+// Time/date constants that will probably never change.
+static const int DAYS_IN_YEAR = 365;
+static const int HOURS_IN_DAY = 24;
+static const int SECONDS_IN_MINUTE = 60;
+static const int MINUTES_IN_HOUR = 60;
+static const uint32_t  WATCHDOG_TIMEOUT = 1250;  //ms timeout
 
 /**
 * @brief Class for gaining access to raw TSIP packets.
@@ -39,25 +45,46 @@ class Thunderbolt; // fwd decl
 class TsipExternalPacketProcessor {
 public:
 	virtual ~TsipExternalPacketProcessor();
-
 	virtual void tsipPacket(TSIP_PACKET tsip_packet, bool isProcessed);
 };
+
+
+
+class RTCFallBack {
+public:
+	virtual const uint32_t getUnixTime() = 0;
+	virtual void setTime(time_t unixTime);
+	virtual uint32_t getSyncInterval();
+};
+
 
 /**
 * @brief Thunderbolt.
 *
 */
-class Thunderbolt
+class Thunderbolt : public ITimeSource
 {
 public:
-
 	Thunderbolt(Stream& _serial);
-	Stream*	getSerial();
+	bool readSerial();
+
+	bool addPacketProcessor(TsipExternalPacketProcessor *pcs);
+	void removePacketProcessor(TsipExternalPacketProcessor *pcs);
+
+	bool flush();
+	bool isWatchdogExpired() {
+		return (millis() > _watchdog);
+	}
+
+	void registerFallback(RTCFallBack &fallback);
+	bool processFallback();
+
 	bool getSoftwareVersionInfo();
 	bool setFixMode(ReportType pos_fixmode, ReportType vel_fixmode, AltMode alt = ALT_NOCHANGE, PPSMode pps = PPS_NOCHANGE, GPSTimeMode time = TME_NOCHANGE);
 	bool setPacketBroadcastMask(uint8_t mask);
 	bool waitForPacket(ReportType type);
 	bool waitForPacketAndSubReport(ReportType haltCommand, SubReportID_8F haltSubCommand);
+
 	const GPSStatus& getStatus() const;
 	const GPSTime& getGPSTime() const;
 	const GPSVersion& getVersion() const;
@@ -65,24 +92,40 @@ public:
 	const VelFix& getVelocityFix() const;
 
 	int  readDataBytes(uint8_t *dst, int n);
-	void writeDataBytes(const uint8_t *bytes, int n);
-	bool flush();
+
+	uint32_t getMilliSecondsPerSecond();
+	uint32_t getSecondsSince1900Epoch();
+
 	void beginCommand(CommandID cmd);
 	void endCommand();
-	void readSerial();
+	void writeDataBytes(const uint8_t *bytes, int n);
 
-	bool addPacketProcessor(TsipExternalPacketProcessor *pcs);
-	void removePacketProcessor(TsipExternalPacketProcessor *pcs);
+	void now(uint32_t *secs, uint32_t *fract);
+
+	time_t getUnixTime();
+
+	virtual uint32_t timeRecv(uint32_t *secs, uint32_t *fract) const // not used
+	{
+		*secs = 0;
+		*fract = 0;
+		return 0;
+	}
+
+	static bool isLeapYear(uint16_t year)
+	{
+		/* Check if the year is divisible by 4 or is divisible by 400 */
+		if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0))
+			return true;
+		else
+			return false;
+	}
 
 private:
-
-	Stream* m_serial;
-	int m_serial_num;
+	Stream* _serial_stream;
+	TsipExternalPacketProcessor *_listeners[MAX_PKT_PROCESSORS];
 
 	bool block_with_timeout();
-
 	bool process_report();
-
 	bool process_addl_status();
 	bool process_datums();
 	bool process_health();
@@ -98,21 +141,26 @@ private:
 	bool process_time();
 	bool process_v_ENU();
 	bool process_v_XYZ();
-
 	void inform_external_processors(bool isProcessed);
+	void update_FractionalSeconds();
+	void update_lastTimeUpdate(uint32_t tmrVal);
+	void reset_GPS_watchdog();
 
-	GPSStatus	m_status;
-	GPSTime		m_time;
-	GPSVersion  m_version;
-	PosFix		m_pfix;
-	VelFix		m_vfix;
+	GPSStatus	_status;
+	GPSTime		_time;
+	GPSVersion  _version;
+	PosFix		_pfix;
+	VelFix		_vfix;
 
-	TsipExternalPacketProcessor *m_listeners[MAX_PKT_PROCESSORS];
+	TsipPacket _rcv_packet;
+	TsipPacket _xmt_packet;
+	RTCFallBack *_fallBack;
 
-	TsipPacket rcv_packet;
-	TsipPacket xmt_packet;
-
-	uint8_t m_n_listeners;
+	uint8_t _num_listeners;
+	uint32_t _fractionalSecondsSinceLastUpdate;
+	uint32_t _milliSecondsOfLastUpdate;
+	uint32_t _milliSecondsPerSecond;
+	time_t _watchdog;
 };
 
 #endif

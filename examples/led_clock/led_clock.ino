@@ -109,15 +109,15 @@ void loop()
 		tbolt.readSerial();
 	}
 
-	GPSStatus s = tbolt.getStatus();
-	if (prevStatus != s) {
-		display_status(s);
-		prevStatus = s;
+	GPSStatus status = tbolt.getStatus();
+	if (prevStatus != status) {
+		display_status(status);
+		prevStatus = status;
 	}
 
-	GPSTime t = tbolt.getGPSTime();
-	if (prevTime != t) {
-		display_time(t);
-		prevTime = t;
+	GPSTime time = tbolt.getGPSTime();
+	if (prevTime != time) {
+		display_time(time);
+		prevTime = time;
 	}
 }

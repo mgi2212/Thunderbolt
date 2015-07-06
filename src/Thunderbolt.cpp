@@ -2,19 +2,95 @@
 // Arduino Thunderbolt support This library is designed to handle asynchronous (broadcast) TSIP packets from a Trimble Thunderbolt
 #include "Thunderbolt.h"
 
-Thunderbolt::Thunderbolt(Stream& _serial) : m_n_listeners(0)
+Thunderbolt::Thunderbolt(Stream& _serial) :
+	_serial_stream(&_serial),
+	_num_listeners(0),
+	_fractionalSecondsSinceLastUpdate(0),
+	_milliSecondsOfLastUpdate(0),
+	_milliSecondsPerSecond(0)
 {
-	m_serial = &_serial;
+	// empty
+	_watchdog = 0;
+}
+
+uint32_t Thunderbolt::getMilliSecondsPerSecond() {
+	return _milliSecondsPerSecond;
+}
+
+void Thunderbolt::registerFallback(RTCFallBack &fallBack) {
+	_fallBack = &fallBack;
+}
+
+time_t Thunderbolt::getUnixTime() {
+		
+	TimeElements tm;
+	tm.Day = _time.day;
+	tm.Hour = _time.hours;
+	tm.Minute = _time.minutes;
+	tm.Month = _time.month;
+	tm.Second = _time.seconds;
+	tm.Year = _time.year - 1970;
+	return makeTime(tm);
+}
+
+bool Thunderbolt::processFallback() {
+	if (!_fallBack) 	{
+		return false;
+	}
+
+	if (!isWatchdogExpired())	{
+		return false;
+	}
+
+	time_t t = _fallBack->getUnixTime();
+	if (getUnixTime() != t) {
+		uint16_t tmrValue = millis();
+		TimeElements tm;
+		breakTime(t, tm);
+		_time.seconds = tm.Second;
+		_time.minutes = tm.Minute;
+		_time.hours = tm.Hour;
+		_time.day = tm.Day;
+		_time.month = tm.Month;
+		_time.year = tm.Year + 1970;
+		update_lastTimeUpdate(tmrValue);
+		return true;
+	}
 }
 
 
+void Thunderbolt::now(uint32_t *secs, uint32_t *fract) {
+	if (secs)
+	{
+		*secs = getSecondsSince1900Epoch();
+	}
+	update_FractionalSeconds();
+	if (fract)
+	{
+		*fract = _fractionalSecondsSinceLastUpdate;
+	}
+}
+
+void Thunderbolt::update_FractionalSeconds(void)
+{
+	// Calculate new fractional value based on system runtime
+	// since the Thunderbolt does not supply anything other than whole seconds.
+	uint32_t currTime = millis();
+	uint32_t millisecondDifference = currTime - _milliSecondsOfLastUpdate;
+	_fractionalSecondsSinceLastUpdate = (millisecondDifference % _milliSecondsPerSecond) * (0xFFFFFFFF / _milliSecondsPerSecond);
+}
+
+void Thunderbolt::reset_GPS_watchdog() {
+	_watchdog = millis() + WATCHDOG_TIMEOUT;
+}
+
 bool Thunderbolt::flush()
 {
-	if (m_serial == NULL) {
+	if (_serial_stream == NULL) {
 		DEBUG_PRINT("No serial port defined...");
 		return false;
 	}
-	m_serial->flush();
+	_serial_stream->flush();
 	return true;
 }
 
@@ -28,7 +104,7 @@ bool Thunderbolt::flush()
 * @param cmd Command to begin.
 */
 void Thunderbolt::beginCommand(CommandID cmd) {
-	assert(m_serial);
+	assert(_serial_stream);
 #ifdef DEBUG_PACKETS
 	Serial.print("packet->");
 	Serial.print((uint8_t)CTRL_DLE, HEX);
@@ -37,15 +113,15 @@ void Thunderbolt::beginCommand(CommandID cmd) {
 	Serial.print(" ");
 #endif
 
-	m_serial->write((uint8_t)DLE);
-	m_serial->write((uint8_t)cmd);
+	_serial_stream->write((uint8_t)DLE);
+	_serial_stream->write((uint8_t)cmd);
 }
 
 /**
 * End a command by sending the end-of-transmission byte sequence.
 */
 void Thunderbolt::endCommand() {
-	assert(m_serial);
+	assert(_serial_stream);
 
 #ifdef DEBUG_PACKETS
 	Serial.print((uint8_t)CTRL_DLE, HEX);
@@ -53,26 +129,29 @@ void Thunderbolt::endCommand() {
 	Serial.println((uint8_t)CTRL_ETX, HEX);
 #endif
 
-	m_serial->write((uint8_t)DLE);
-	m_serial->write((uint8_t)ETX);
+	_serial_stream->write((uint8_t)DLE);
+	_serial_stream->write((uint8_t)ETX);
 }
 
 /**
-* This is the entry point to the parser. Reads data bytes from a TSIP report packet, 
-* unpacking any escape sequences in the process, placing `n` decoded bytes into a packet 
+* This is the entry point to the parser. Reads data bytes from a TSIP report packet,
+* unpacking any escape sequences in the process, placing `n` decoded bytes into a packet
 * buffer. Does not block, partial packets are retained until they are complete or reset.
 */
-void Thunderbolt::readSerial() {
-	assert(m_serial);
+bool Thunderbolt::readSerial() {
+	assert(_serial_stream);
 
-	while (m_serial->available() > 0)
+	bool retval = false;
+	while (_serial_stream->available() > 0)
 	{
-		rcv_packet.encode(m_serial->read());
-		if (rcv_packet.isComplete())
+		_rcv_packet.encode(_serial_stream->read());
+		if (_rcv_packet.isComplete())
 		{
 			process_report();
+			return true;
 		}
 	}
+	return retval;
 }
 
 /**
@@ -83,10 +162,10 @@ void Thunderbolt::readSerial() {
 * @param n Number of bytes to encode.
 */
 void Thunderbolt::writeDataBytes(const uint8_t* bytes, int n) {
-	assert(m_serial);
+	assert(_serial_stream);
 
 	for (int i = 0; i < n; i++) {
-		m_serial->write(bytes[i]);
+		_serial_stream->write(bytes[i]);
 
 #ifdef DEBUG_PACKETS
 		Serial.print(bytes[i], HEX);
@@ -95,7 +174,7 @@ void Thunderbolt::writeDataBytes(const uint8_t* bytes, int n) {
 
 		if (bytes[i] == DLE) {
 			// avoid ambiguity with "end txmission" byte sequence
-			m_serial->write(bytes[i]);
+			_serial_stream->write(bytes[i]);
 
 #ifdef DEBUG_PACKETS
 			Serial.print(bytes[i], HEX);
@@ -108,7 +187,7 @@ void Thunderbolt::writeDataBytes(const uint8_t* bytes, int n) {
 bool Thunderbolt::block_with_timeout()
 {
 	unsigned long timeout = millis() + SERIAL_TIMEOUT;
-	while ((m_serial->available() <= 0))
+	while ((_serial_stream->available() <= 0))
 	{
 		if (timeout <= millis())
 		{
@@ -129,35 +208,35 @@ bool Thunderbolt::block_with_timeout()
 ///</returns>
 bool Thunderbolt::waitForPacket(ReportType haltAt)
 {
-	assert(m_serial);
+	assert(_serial_stream);
 
 	for (short s = 0; s < TSIP_CMD_RETRYS; s++)
 	{
-		beginCommand(xmt_packet.command);
-		writeDataBytes(xmt_packet.packet_data, xmt_packet.length);
+		beginCommand(_xmt_packet.command);
+		writeDataBytes(_xmt_packet.packet_data, _xmt_packet.length);
 		endCommand();
 
-		while (!rcv_packet.isComplete())
+		while (!_rcv_packet.isComplete())
 		{
 			if (!block_with_timeout())
 			{
-				xmt_packet.error = TSIP_Timeout; // communications timeout
+				_xmt_packet.error = TSIP_Timeout; // communications timeout
 				return false;
 			}
-			rcv_packet.encode(m_serial->read());
+			_rcv_packet.encode(_serial_stream->read());
 		}
 
-		if (rcv_packet.code == haltAt)		// return when the expected packet is received
+		if (_rcv_packet.code == haltAt)		// return when the expected packet is received
 		{
 			return true;
 		}
-		else if (rcv_packet.isComplete())	// could be a packet ahead of this request
+		else if (_rcv_packet.isComplete())	// could be a packet ahead of this request
 		{
 			process_report();				// process the unknown report (this clears the receive packet)
 		}
 		DEBUG_PRINTDEC("TSIP: retries =", s);
 	}
-	xmt_packet.error = TSIP_Timeout;		// communications timeout
+	_xmt_packet.error = TSIP_Timeout;		// communications timeout
 	return false;
 }
 
@@ -166,34 +245,34 @@ bool Thunderbolt::waitForPacket(ReportType haltAt)
 bool Thunderbolt::waitForPacketAndSubReport(ReportType haltCommand, SubReportID_8F haltSubCommand)
 {
 	//DEBUG_PRINT(__FUNCTION__);
-	assert(m_serial);
+	assert(_serial_stream);
 
 	for (short s = 0; s < TSIP_CMD_RETRYS; s++)
 	{
-		beginCommand(xmt_packet.command);
-		writeDataBytes(xmt_packet.packet_data, xmt_packet.length);
+		beginCommand(_xmt_packet.command);
+		writeDataBytes(_xmt_packet.packet_data, _xmt_packet.length);
 		endCommand();
 
-		while (!rcv_packet.isComplete())
+		while (!_rcv_packet.isComplete())
 		{
 			if (!block_with_timeout())  // will timeout
 			{
-				xmt_packet.error = TSIP_Timeout; // communications timeout
+				_xmt_packet.error = TSIP_Timeout; // communications timeout
 				return false;
 			}
-			rcv_packet.encode(m_serial->read());
+			_rcv_packet.encode(_serial_stream->read());
 		}
-		if ((rcv_packet.code == haltCommand) && (rcv_packet.getSubReportID() == haltSubCommand))
+		if ((_rcv_packet.code == haltCommand) && (_rcv_packet.getSubReportID() == haltSubCommand))
 		{
 			return true;
 		}
-		else if (rcv_packet.isComplete())	// could be a packet ahead of this request
+		else if (_rcv_packet.isComplete())	// could be a packet ahead of this request
 		{
 			process_report();			// process the unknown report (this clears the receive packet)
 		}
 		DEBUG_PRINTDEC("TSIP: retries =", s);
 	}
-	xmt_packet.error = TSIP_Timeout;	// communications timeout
+	_xmt_packet.error = TSIP_Timeout;	// communications timeout
 	return false;
 }
 
@@ -204,9 +283,9 @@ bool Thunderbolt::waitForPacketAndSubReport(ReportType haltCommand, SubReportID_
 bool Thunderbolt::getSoftwareVersionInfo()
 {
 	DEBUG_PRINT(__FUNCTION__);
-	xmt_packet.clear();
-	xmt_packet.command = CMD_REQ_SOFTWARE_VERSION;
-	xmt_packet.length = 0;
+	_xmt_packet.clear();
+	_xmt_packet.command = CMD_REQ_SOFTWARE_VERSION;
+	_xmt_packet.length = 0;
 	if (waitForPacket(RPT_SOFTWARE_VERSION))
 	{
 		return process_report();
@@ -218,18 +297,18 @@ bool Thunderbolt::getSoftwareVersionInfo()
 bool Thunderbolt::setPacketBroadcastMask(uint8_t mask)
 {
 	DEBUG_PRINT(__FUNCTION__);
-	xmt_packet.clear();
-	xmt_packet.command = CMD_TSIP_SUPERPACKET_8E;
-	xmt_packet.packet_data[0] = SUBCMD_SET_REQ_PACKET_BROADCAST_MASK;
+	_xmt_packet.clear();
+	_xmt_packet.command = CMD_TSIP_SUPERPACKET_8E;
+	_xmt_packet.packet_data[0] = SUBCMD_SET_REQ_PACKET_BROADCAST_MASK;
 	//xmt_packet.packet_data[1] = 0;
-	xmt_packet.packet_data[2] = mask;  // byte order
+	_xmt_packet.packet_data[2] = mask;  // byte order
 	//xmt_packet.packet_data[3] = 0;
 	//xmt_packet.packet_data[4] = 0;
-	xmt_packet.length = 5;
+	_xmt_packet.length = 5;
 	if (waitForPacketAndSubReport(RPT_TSIP_SUPERPACKET_8F, SUBRPT_PACKET_BROADCAST_MASK))
 	{
 		DEBUG_PRINT("broadcast mask set");
-		rcv_packet.clear();
+		_rcv_packet.clear();
 		return true;
 	}
 
@@ -261,9 +340,9 @@ bool Thunderbolt::setFixMode(ReportType pos_fixmode,
 {
 	DEBUG_PRINT(__FUNCTION__);
 	DEBUG_PRINT("request I/O options");
-	xmt_packet.clear();
-	xmt_packet.command = CMD_SET_REQ_IO_OPTIONS;
-	xmt_packet.length = 0;
+	_xmt_packet.clear();
+	_xmt_packet.command = CMD_SET_REQ_IO_OPTIONS;
+	_xmt_packet.length = 0;
 	if (!waitForPacket(RPT_IO_SETTINGS))
 	{
 		assert(false);
@@ -271,8 +350,8 @@ bool Thunderbolt::setFixMode(ReportType pos_fixmode,
 	}
 	DEBUG_PRINT("received I/O options");
 
-	xmt_packet.clear(); // prepare
-	memcpy(xmt_packet.packet_data, rcv_packet.packet_data, rcv_packet.length);
+	_xmt_packet.clear(); // prepare
+	memcpy(_xmt_packet.packet_data, _rcv_packet.packet_data, _rcv_packet.length);
 
 	const uint8_t pos_mask = POS_MASK;
 	const uint8_t vel_mask = VEL_MASK;
@@ -286,33 +365,33 @@ bool Thunderbolt::setFixMode(ReportType pos_fixmode,
 	// alter position fixmode
 	switch (pos_fixmode) {
 		case RPT_FIX_POS_LLA_32:  // LLA = Latitude Longitude Altitude
-			xmt_packet.packet_data[0] = (xmt_packet.packet_data[0] & ~pos_mask) | (POS_ECEF_ON | POS_LLA_ON); break;
+			_xmt_packet.packet_data[0] = (_xmt_packet.packet_data[0] & ~pos_mask) | (POS_ECEF_ON | POS_LLA_ON); break;
 		case RPT_FIX_POS_LLA_64:
-			xmt_packet.packet_data[0] = (xmt_packet.packet_data[0] & ~pos_mask) | (POS_ECEF_ON | POS_LLA_ON | POS_DOUBLE); break;
+			_xmt_packet.packet_data[0] = (_xmt_packet.packet_data[0] & ~pos_mask) | (POS_ECEF_ON | POS_LLA_ON | POS_DOUBLE); break;
 		case RPT_FIX_POS_XYZ_32:
-			xmt_packet.packet_data[0] = (xmt_packet.packet_data[0] & ~pos_mask) | (POS_ECEF_ON); break;
+			_xmt_packet.packet_data[0] = (_xmt_packet.packet_data[0] & ~pos_mask) | (POS_ECEF_ON); break;
 		case RPT_FIX_POS_XYZ_64:
-			xmt_packet.packet_data[0] = (xmt_packet.packet_data[0] & ~pos_mask) | (POS_ECEF_ON | POS_DOUBLE); break;
+			_xmt_packet.packet_data[0] = (_xmt_packet.packet_data[0] & ~pos_mask) | (POS_ECEF_ON | POS_DOUBLE); break;
 		default: break; // do nothing
 	}
 	// alter velocity fixmode
 	switch (vel_fixmode) {
 		case RPT_FIX_VEL_XYZ:
-			xmt_packet.packet_data[1] = (xmt_packet.packet_data[1] & ~vel_mask) | (VEL_ECEF_ON); break;
+			_xmt_packet.packet_data[1] = (_xmt_packet.packet_data[1] & ~vel_mask) | (VEL_ECEF_ON); break;
 		case RPT_FIX_VEL_ENU:
-			xmt_packet.packet_data[1] = (xmt_packet.packet_data[1] & ~vel_mask) | (VEL_ENU_ON); break;
+			_xmt_packet.packet_data[1] = (_xmt_packet.packet_data[1] & ~vel_mask) | (VEL_ENU_ON); break;
 		default: break; // do nothing
 	}
 	// alter other fixmode settings
-	if (alt != ALT_NOCHANGE) xmt_packet.packet_data[0] = (xmt_packet.packet_data[0] & ~alt_mask) | alt;   // altitude
+	if (alt != ALT_NOCHANGE) _xmt_packet.packet_data[0] = (_xmt_packet.packet_data[0] & ~alt_mask) | alt;   // altitude
 #ifdef COPERNICUS
-	if (pps != PPS_NOCHANGE) xmt_packet.packet_data[2] = (xmt_packet.packet_data[2] & ~pps_mask) | pps; // Thunderbolt docs don't mention this Copernicus option
+	if (pps != PPS_NOCHANGE) _xmt_packet.packet_data[2] = (_xmt_packet.packet_data[2] & ~pps_mask) | pps; // Thunderbolt docs don't mention this Copernicus option
 #endif
-	if (time != TME_NOCHANGE) xmt_packet.packet_data[2] = (xmt_packet.packet_data[2] & ~tme_mask) | time; // time in GPS or UTC
+	if (time != TME_NOCHANGE) _xmt_packet.packet_data[2] = (_xmt_packet.packet_data[2] & ~tme_mask) | time; // time in GPS or UTC
 
 	DEBUG_PRINT("modify I/O options");
-	xmt_packet.command = CMD_SET_REQ_IO_OPTIONS;
-	xmt_packet.length = 4;
+	_xmt_packet.command = CMD_SET_REQ_IO_OPTIONS;
+	_xmt_packet.length = 4;
 	if (!waitForPacket(RPT_IO_SETTINGS))
 	{
 		assert(false);
@@ -327,7 +406,7 @@ bool Thunderbolt::setFixMode(ReportType pos_fixmode,
 
 bool Thunderbolt::process_report() {
 	bool ok = false;
-	switch (rcv_packet.code)
+	switch (_rcv_packet.code)
 	{
 		case RPT_FIX_POS_LLA_32:
 			ok = process_p_LLA_32(); break;
@@ -351,18 +430,18 @@ bool Thunderbolt::process_report() {
 			ok = process_addl_status(); break;
 		case RPT_TSIP_SUPERPACKET_8F:
 		{
-				switch (rcv_packet.getSubReportID())
-				{
-					case SUBRPT_PACKET_BROADCAST_MASK:
-						ok = true; break;
-					case	SUBRPT_PRIMARY_TIMING_PACKET:
-						ok = process_time(); break;
-					case SUBRPT_SUPPLEMENTAL_TIMING_PACKET:
-						ok = process_supplemental_timing(); break;
-					default:
-						DEBUG_PRINTHEX("Unhandled 8F Report = ", rcv_packet.getSubReportID());
-						break;
-				}
+			switch (_rcv_packet.getSubReportID())
+			{
+				case SUBRPT_PACKET_BROADCAST_MASK:
+					ok = true; break;
+				case	SUBRPT_PRIMARY_TIMING_PACKET:
+					ok = process_time(); break;
+				case SUBRPT_SUPPLEMENTAL_TIMING_PACKET:
+					ok = process_supplemental_timing(); break;
+				default:
+					DEBUG_PRINTHEX("Unhandled 8F Report = ", _rcv_packet.getSubReportID());
+					break;
+			}
 		}
 			break;
 		case RPT_SATELLITES:
@@ -370,7 +449,7 @@ bool Thunderbolt::process_report() {
 		case RPT_SOFTWARE_VERSION:
 			ok = process_software_version_info(); break;
 		default:
-			DEBUG_PRINTHEX("Unhandled Report = ", rcv_packet.code);
+			DEBUG_PRINTHEX("Unhandled Report = ", _rcv_packet.code);
 			break;
 	}
 
@@ -378,31 +457,31 @@ bool Thunderbolt::process_report() {
 	inform_external_processors(ok);
 
 	// ready the packet buffer
-	rcv_packet.clear();
+	_rcv_packet.clear();
 	return ok;
 }
 
 void Thunderbolt::inform_external_processors(bool isProcessed)
 {
-	for (int i = 0; i < m_n_listeners; i++)
+	for (int i = 0; i < _num_listeners; i++)
 	{
-		m_listeners[i]->tsipPacket(this->rcv_packet, isProcessed);
+		_listeners[i]->tsipPacket(this->_rcv_packet, isProcessed);
 	}
 }
 
 bool Thunderbolt::process_software_version_info()
 {
-	m_version.app.major_ver = rcv_packet.getNextByte();
-	m_version.app.minor_ver = rcv_packet.getNextByte();
-	m_version.app.month = rcv_packet.getNextByte();
-	m_version.app.day = rcv_packet.getNextByte();
-	m_version.app.year1900 = rcv_packet.getNextByte();
+	_version.app.major_ver = _rcv_packet.getNextByte();
+	_version.app.minor_ver = _rcv_packet.getNextByte();
+	_version.app.month = _rcv_packet.getNextByte();
+	_version.app.day = _rcv_packet.getNextByte();
+	_version.app.year1900 = _rcv_packet.getNextByte();
 
-	m_version.core.major_ver = rcv_packet.getNextByte();
-	m_version.core.minor_ver = rcv_packet.getNextByte();
-	m_version.core.month = rcv_packet.getNextByte();
-	m_version.core.day = rcv_packet.getNextByte();
-	m_version.core.year1900 = rcv_packet.getNextByte();
+	_version.core.major_ver = _rcv_packet.getNextByte();
+	_version.core.minor_ver = _rcv_packet.getNextByte();
+	_version.core.month = _rcv_packet.getNextByte();
+	_version.core.day = _rcv_packet.getNextByte();
+	_version.core.year1900 = _rcv_packet.getNextByte();
 	return true;
 }
 
@@ -413,149 +492,168 @@ bool Thunderbolt::process_satellites()
 	return true;
 }
 
-bool Thunderbolt::process_time() {
-	rcv_packet.getNextByte(); // waste the subcode
-	m_time.time_of_week = rcv_packet.getNextDWord();
-	m_time.week_no = rcv_packet.getNextWord();
-	m_time.utc_offs = rcv_packet.getNextWord();
-	m_time.timing_flags = rcv_packet.getNextByte();
+void Thunderbolt::update_lastTimeUpdate(uint32_t tmrVal)  {
+	_milliSecondsPerSecond = (_milliSecondsPerSecond + (tmrVal - _milliSecondsOfLastUpdate)) / 2;
+	_fractionalSecondsSinceLastUpdate = 0;
+	_milliSecondsOfLastUpdate = tmrVal;
+}
 
-	m_time.seconds = rcv_packet.getNextByte();
-	m_time.minutes = rcv_packet.getNextByte();
-	m_time.hours = rcv_packet.getNextByte();
-	m_time.day = rcv_packet.getNextByte();
-	m_time.month = rcv_packet.getNextByte();
-	m_time.year = rcv_packet.getNextWord();
+
+// This function decodes the primary timing packet it is called at a rate of 1pps and used to track
+// the micro controller's internal timing (ms/sec) it also resets any fractional seconds
+bool Thunderbolt::process_time() {
+	DEBUG_PRINT(__FUNCTION__);
+	uint32_t tmrVal = millis();
+	_rcv_packet.getNextByte(); // waste the sub code
+	_time.time_of_week = _rcv_packet.getNextDWord();
+	_time.week_no = _rcv_packet.getNextWord();
+	_time.utc_offs = _rcv_packet.getNextWord();
+	_time.timing_flags = _rcv_packet.getNextByte();
+	_time.seconds = _rcv_packet.getNextByte();
+	_time.minutes = _rcv_packet.getNextByte();
+	_time.hours = _rcv_packet.getNextByte();
+	_time.day = _rcv_packet.getNextByte();
+	_time.month = _rcv_packet.getNextByte();
+	_time.year = _rcv_packet.getNextWord();
+	update_lastTimeUpdate(tmrVal);
+
+	if (_fallBack) {
+		time_t t = _fallBack->getUnixTime();
+		if ((t % _fallBack->getSyncInterval()) == 0) {
+			_fallBack->setTime(getUnixTime());
+		}
+	}
+	reset_GPS_watchdog();
 	return true;
 }
 
 bool Thunderbolt::process_supplemental_timing()
 {
 	DEBUG_PRINT(__FUNCTION__);
-	rcv_packet.getNextByte(); // waste the subcode
-	m_status.rcvr_mode = static_cast<ReceiverMode>(rcv_packet.getNextByte());
-	m_status.disc_mode = (DiscipliningMode)rcv_packet.getNextByte();
-	m_status.self_survey_progress = rcv_packet.getNextByte();
-	m_status.holdover_duration = rcv_packet.getNextDWord();
-	m_status.critical_alarms = rcv_packet.getNextWord();
-	m_status.minor_alarms = rcv_packet.getNextWord();
-	m_status.rcvr_status = (ReceiverStatus)rcv_packet.getNextByte();
-	m_status.disc_activity = (DiscipliningActivity)rcv_packet.getNextByte();
+	_rcv_packet.getNextByte(); // waste the subcode
+	_status.rcvr_mode = static_cast<ReceiverMode>(_rcv_packet.getNextByte());
+	_status.disc_mode = (DiscipliningMode)_rcv_packet.getNextByte();
+	_status.self_survey_progress = _rcv_packet.getNextByte();
+	_status.holdover_duration = _rcv_packet.getNextDWord();
+	_status.critical_alarms = _rcv_packet.getNextWord();
+	_status.minor_alarms = _rcv_packet.getNextWord();
+	_status.rcvr_status = (ReceiverStatus)_rcv_packet.getNextByte();
+	_status.disc_activity = (DiscipliningActivity)_rcv_packet.getNextByte();
 
-	rcv_packet.getNextWord(); // spares
+	_rcv_packet.getNextWord(); // spares
 
-	m_status.pps_offset = rcv_packet.getNextFloat();
-	m_status.mhz_offset = rcv_packet.getNextFloat();
-	m_status.dac_value = rcv_packet.getNextDWord();
-	m_status.dac_voltage = rcv_packet.getNextFloat();
-	m_status.temperature = rcv_packet.getNextFloat();
-	m_status.latitude = rcv_packet.getNextDouble();
-	m_status.longitude = rcv_packet.getNextDouble();
-	m_status.altitude = rcv_packet.getNextDouble();
+	_status.pps_offset = _rcv_packet.getNextFloat();
+	_status.mhz_offset = _rcv_packet.getNextFloat();
+	_status.dac_value = _rcv_packet.getNextDWord();
+	_status.dac_voltage = _rcv_packet.getNextFloat();
+	_status.temperature = _rcv_packet.getNextFloat();
+	_status.latitude = _rcv_packet.getNextDouble();
+	_status.longitude = _rcv_packet.getNextDouble();
+	_status.altitude = _rcv_packet.getNextDouble();
 	return true;
 }
 
 bool Thunderbolt::process_p_LLA_32() {
 	DEBUG_PRINT(__FUNCTION__);
-	m_pfix.type = RPT_FIX_POS_LLA_32;
-	LLA_Fix<Float32> *fix = &m_pfix.lla_32;
-	fix->lat.f = rcv_packet.getNextFloat();
-	fix->lng.f = rcv_packet.getNextFloat();
-	fix->alt.f = rcv_packet.getNextFloat();
-	fix->bias.f = rcv_packet.getNextFloat();
-	fix->fixtime.f = rcv_packet.getNextFloat();
+	_pfix.type = RPT_FIX_POS_LLA_32;
+	LLA_Fix<Float32> *fix = &_pfix.lla_32;
+	fix->lat.f = _rcv_packet.getNextFloat();
+	fix->lng.f = _rcv_packet.getNextFloat();
+	fix->alt.f = _rcv_packet.getNextFloat();
+	fix->bias.f = _rcv_packet.getNextFloat();
+	fix->fixtime.f = _rcv_packet.getNextFloat();
 	return true;
 }
 
 bool Thunderbolt::process_p_LLA_64() {
 	DEBUG_PRINT(__FUNCTION__);
-	m_pfix.type = RPT_FIX_POS_LLA_64;
-	LLA_Fix<Float64> *fix = &m_pfix.lla_64;
-	fix->lat.value.d = rcv_packet.getNextDouble();
-	fix->lng.value.d = rcv_packet.getNextDouble();
-	fix->alt.value.d = rcv_packet.getNextDouble();
-	fix->bias.value.d = rcv_packet.getNextDouble();
-	fix->fixtime.f = rcv_packet.getNextFloat(); // fixtime is always a 4-byte float
+	_pfix.type = RPT_FIX_POS_LLA_64;
+	LLA_Fix<Float64> *fix = &_pfix.lla_64;
+	fix->lat.value.d = _rcv_packet.getNextDouble();
+	fix->lng.value.d = _rcv_packet.getNextDouble();
+	fix->alt.value.d = _rcv_packet.getNextDouble();
+	fix->bias.value.d = _rcv_packet.getNextDouble();
+	fix->fixtime.f = _rcv_packet.getNextFloat(); // fixtime is always a 4-byte float
 	return true;
 }
 
 bool Thunderbolt::process_p_XYZ_32() {
 	DEBUG_PRINT(__FUNCTION__);
-	m_pfix.type = RPT_FIX_POS_XYZ_32;
-	XYZ_Fix<Float32> *fix = &m_pfix.xyz_32;
+	_pfix.type = RPT_FIX_POS_XYZ_32;
+	XYZ_Fix<Float32> *fix = &_pfix.xyz_32;
 
-	fix->x.f = rcv_packet.getNextFloat();
-	fix->y.f = rcv_packet.getNextFloat();
-	fix->z.f = rcv_packet.getNextFloat();
-	fix->bias.f = rcv_packet.getNextFloat();
-	fix->fixtime.f = rcv_packet.getNextFloat();
+	fix->x.f = _rcv_packet.getNextFloat();
+	fix->y.f = _rcv_packet.getNextFloat();
+	fix->z.f = _rcv_packet.getNextFloat();
+	fix->bias.f = _rcv_packet.getNextFloat();
+	fix->fixtime.f = _rcv_packet.getNextFloat();
 	return true;
 }
 
 bool Thunderbolt::process_p_XYZ_64() {
 	DEBUG_PRINT(__FUNCTION__);
-	m_pfix.type = RPT_FIX_POS_XYZ_64;
-	XYZ_Fix<Float64> *fix = &m_pfix.xyz_64;
+	_pfix.type = RPT_FIX_POS_XYZ_64;
+	XYZ_Fix<Float64> *fix = &_pfix.xyz_64;
 
-	fix->x.value.d = rcv_packet.getNextDouble();
-	fix->y.value.d = rcv_packet.getNextDouble();
-	fix->z.value.d = rcv_packet.getNextDouble();
-	fix->bias.value.d = rcv_packet.getNextDouble();
-	fix->fixtime.f = rcv_packet.getNextFloat(); // fixtime is always a 4-byte float
+	fix->x.value.d = _rcv_packet.getNextDouble();
+	fix->y.value.d = _rcv_packet.getNextDouble();
+	fix->z.value.d = _rcv_packet.getNextDouble();
+	fix->bias.value.d = _rcv_packet.getNextDouble();
+	fix->fixtime.f = _rcv_packet.getNextFloat(); // fixtime is always a 4-byte float
 	return true;
 }
 
 bool Thunderbolt::process_v_XYZ() {
 	DEBUG_PRINT(__FUNCTION__);
-	m_vfix.type = RPT_FIX_VEL_XYZ;
-	XYZ_VFix *fix = &m_vfix.xyz;
+	_vfix.type = RPT_FIX_VEL_XYZ;
+	XYZ_VFix *fix = &_vfix.xyz;
 
-	fix->x.f = rcv_packet.getNextFloat();
-	fix->y.f = rcv_packet.getNextFloat();
-	fix->z.f = rcv_packet.getNextFloat();
-	fix->bias.f = rcv_packet.getNextFloat();
-	fix->fixtime.f = rcv_packet.getNextFloat();
+	fix->x.f = _rcv_packet.getNextFloat();
+	fix->y.f = _rcv_packet.getNextFloat();
+	fix->z.f = _rcv_packet.getNextFloat();
+	fix->bias.f = _rcv_packet.getNextFloat();
+	fix->fixtime.f = _rcv_packet.getNextFloat();
 	return true;
 }
 
 bool Thunderbolt::process_v_ENU() {
 	DEBUG_PRINT(__FUNCTION__);
-	m_vfix.type = RPT_FIX_VEL_ENU;
-	ENU_VFix *fix = &m_vfix.enu;
+	_vfix.type = RPT_FIX_VEL_ENU;
+	ENU_VFix *fix = &_vfix.enu;
 
-	fix->e.f = rcv_packet.getNextFloat();
-	fix->n.f = rcv_packet.getNextFloat();
-	fix->u.f = rcv_packet.getNextFloat();
-	fix->bias.f = rcv_packet.getNextFloat();
-	fix->fixtime.f = rcv_packet.getNextFloat();
+	fix->e.f = _rcv_packet.getNextFloat();
+	fix->n.f = _rcv_packet.getNextFloat();
+	fix->u.f = _rcv_packet.getNextFloat();
+	fix->bias.f = _rcv_packet.getNextFloat();
+	fix->fixtime.f = _rcv_packet.getNextFloat();
 	return true;
 }
 
 bool Thunderbolt::process_primary_timing() {
 	DEBUG_PRINT(__FUNCTION__);
-	m_time.time_of_week = rcv_packet.getNextFloat();
-	m_time.week_no = rcv_packet.getNextWord();
-	m_time.utc_offs = rcv_packet.getNextFloat();
+	_time.time_of_week = _rcv_packet.getNextFloat();
+	_time.week_no = _rcv_packet.getNextWord();
+	_time.utc_offs = _rcv_packet.getNextFloat();
 	return true;
 }
 
 bool Thunderbolt::process_health() {
 	DEBUG_PRINT(__FUNCTION__);
-	m_status.health = static_cast<GPSHealth>(rcv_packet.packet_data[0]);
+	_status.health = static_cast<GPSHealth>(_rcv_packet.packet_data[0]);
 	return true;
 }
 
 bool Thunderbolt::process_addl_status() {
 	DEBUG_PRINT(__FUNCTION__);
-	m_status.rtclock_unavailable = (rcv_packet.packet_data[1] & 0x02) != 0;
-	m_status.almanac_incomplete = (rcv_packet.packet_data[1] & 0x08) != 0;
+	_status.rtclock_unavailable = (_rcv_packet.packet_data[1] & 0x02) != 0;
+	_status.almanac_incomplete = (_rcv_packet.packet_data[1] & 0x08) != 0;
 	return true;
 }
 
 bool Thunderbolt::process_sbas_status() {
 	DEBUG_PRINT(__FUNCTION__);
-	m_status.sbas_corrected = (rcv_packet.packet_data[0] & 0x01) != 0;
-	m_status.sbas_enabled = (rcv_packet.packet_data[0] & 0x02) != 0;
+	_status.sbas_corrected = (_rcv_packet.packet_data[0] & 0x01) != 0;
+	_status.sbas_enabled = (_rcv_packet.packet_data[0] & 0x02) != 0;
 	return true;
 }
 
@@ -564,11 +662,7 @@ bool Thunderbolt::process_sbas_status() {
 ***************************/
 
 const GPSVersion& Thunderbolt::getVersion() const {
-	return m_version;
-}
-
-Stream* Thunderbolt::getSerial() {
-	return m_serial;
+	return _version;
 }
 
 /**
@@ -576,21 +670,21 @@ Stream* Thunderbolt::getSerial() {
 * If the unit has a GPS lock, `getStatus().health` will equal `HLTH_DOING_FIXES`.
 */
 const GPSStatus& Thunderbolt::getStatus() const {
-	return m_status;
+	return _status;
 }
 
 /**
 * Get the most current position fix.
 */
 const PosFix& Thunderbolt::getPositionFix() const {
-	return m_pfix;
+	return _pfix;
 }
 
 /**
 * Get the most current velocity fix.
 */
 const VelFix& Thunderbolt::getVelocityFix() const {
-	return m_vfix;
+	return _vfix;
 }
 
 /**
@@ -598,7 +692,7 @@ const VelFix& Thunderbolt::getVelocityFix() const {
 * this datum must be correlated with a PPS pulse signal.
 */
 const GPSTime& Thunderbolt::getGPSTime() const {
-	return m_time;
+	return _time;
 }
 
 /**
@@ -608,11 +702,11 @@ const GPSTime& Thunderbolt::getGPSTime() const {
 * @return `false` if there was not enough space to add the processor, `true` otherwise.
 */
 bool Thunderbolt::addPacketProcessor(TsipExternalPacketProcessor *pcs) {
-	for (int i = 0; i < m_n_listeners; i++) {
-		if (m_listeners[i] == pcs) return true;
+	for (int i = 0; i < _num_listeners; i++) {
+		if (_listeners[i] == pcs) return true;
 	}
-	if (m_n_listeners >= MAX_PKT_PROCESSORS) return false;
-	m_listeners[m_n_listeners++] = pcs;
+	if (_num_listeners >= MAX_PKT_PROCESSORS) return false;
+	_listeners[_num_listeners++] = pcs;
 	return true;
 }
 
@@ -622,17 +716,57 @@ bool Thunderbolt::addPacketProcessor(TsipExternalPacketProcessor *pcs) {
 */
 void Thunderbolt::removePacketProcessor(TsipExternalPacketProcessor *pcs) {
 	bool found = false;
-	for (int i = 0; i < m_n_listeners; i++) {
-		if (m_listeners[i] == pcs) {
+	for (int i = 0; i < _num_listeners; i++) {
+		if (_listeners[i] == pcs) {
 			found = true;
 		}
-		if (found && i < m_n_listeners - 1) {
-			m_listeners[i] = m_listeners[i + 1];
+		if (found && i < _num_listeners - 1) {
+			_listeners[i] = _listeners[i + 1];
 		}
 	}
 	if (found) {
-		m_n_listeners = m_n_listeners - 1;
+		_num_listeners -= 1;
 	}
+}
+
+// February is 28 here, but we will account for leap years further down.
+static int numDaysInMonths[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+//const unsigned long seventyYears = 2208988800UL; // to convert unix time to epoch
+
+uint32_t Thunderbolt::getSecondsSince1900Epoch()
+{
+	uint32_t returnValue = 0;
+	// Hours, minutes and regular seconds 
+	returnValue =
+		_time.seconds +
+		(_time.minutes * SECONDS_IN_MINUTE) +
+		(_time.hours * SECONDS_IN_MINUTE * MINUTES_IN_HOUR);
+
+	// Days, months and years accounting for past leap years and for different sized months.
+	uint32_t numDays = 0;
+	for (uint32_t currentYear = EPOCH_YEAR; currentYear < _time.year; currentYear++)
+	{
+		if (isLeapYear(currentYear)) {
+			numDays++;
+		}
+	}
+	numDays += DAYS_IN_YEAR * (_time.year - EPOCH_YEAR);
+	// calculate elapsed days, current year using a table, don't count current month (it's not over yet)
+	// numDaysInMonths is zero-based
+	for (uint8_t idx = 0; idx < _time.month - 1; idx++)
+	{
+		numDays += numDaysInMonths[idx]; 
+	}
+	// add days for this month, not today as it's not over yet either!
+	numDays += _time.day - 1;
+	// account for current leap year if applicable
+	if (isLeapYear(_time.year) && (_time.month > 2)) {
+		numDays++;
+	}
+	returnValue += numDays * SECONDS_IN_MINUTE * MINUTES_IN_HOUR * HOURS_IN_DAY;
+	// Return final result.
+	return returnValue;
 }
 
 /****************************

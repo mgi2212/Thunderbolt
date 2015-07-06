@@ -14,6 +14,7 @@
 
 #include <stdint.h>
 #include <float.h>
+#include <time.h>
 
 #define EXTERN extern
 #define COORD int
@@ -271,51 +272,51 @@ enum GPSTimeMode {
 	TME_NOCHANGE = 0xFF
 };
 
-enum TimingModes
-{
-	GPS,
-	UTC
-};
+//enum TimingModes
+//{
+//	GPS,
+//	UTC
+//};
 
 //  <summary>
 //  Time Status
 //  </summary>
-enum TimeType
-{
-	//  No Time Available
-	NoTimeAvailable,
-	//  No UTC Offset
-	NoUTCOffset,
-	//  User Set Time
-	UserSetTime,
-	//  UTC Time OK
-	UTCTimeOk,
-	//  GPS Time OK
-	GPSTimeOk
-};
+//enum TimeType
+//{
+//	//  No Time Available
+//	NoTimeAvailable,
+//	//  No UTC Offset
+//	NoUTCOffset,
+//	//  User Set Time
+//	UserSetTime,
+//	//  UTC Time OK
+//	UTCTimeOk,
+//	//  GPS Time OK
+//	GPSTimeOk
+//};
 
-enum FixMode
-{
-	Auto = 0,
-	Manual = 1
-};
+//enum FixMode
+//{
+//	Auto = 0,
+//	Manual = 1
+//};
 
 //  <summary>
 //  Values that describe the demension of the current fix
 //  </summary>
-enum FixDimension
-{
-	//  None
-	None,
-	//  1D Clock
-	Clock_1D,
-	//  2D Position
-	Position_2D,
-	//  3D Position
-	Position_3D,
-	//  Over Determined
-	OverDetermined
-};
+//enum FixDimension
+//{
+//	//  None
+//	None,
+//	//  1D Clock
+//	Clock_1D,
+//	//  2D Position
+//	Position_2D,
+//	//  3D Position
+//	Position_3D,
+//	//  Over Determined
+//	OverDetermined
+//};
 
 //  <summary>
 //  1	    Ideal	    This is the highest possible confidence level to be used for applications
@@ -332,15 +333,15 @@ enum FixDimension
 //  >20	    Poor	    At this level, measurements are inaccurate by as much as 300 meters with a
 //                      6 meter accurate device (50 DOP × 6 meters) and should be discarded.
 //  </summary>
-enum FixPrecision
-{
-	Ideal,
-	Excellent,
-	Good,
-	Moderate,
-	Fair,
-	Poor
-};
+//enum FixPrecision
+//{
+//	Ideal,
+//	Excellent,
+//	Good,
+//	Moderate,
+//	Fair,
+//	Poor
+//};
 
 enum ReceiverStatus
 {
@@ -706,6 +707,10 @@ struct GPSTime {				// 8F.AB
 	}
 };
 
+/**
+* @brief GPSStatus
+*
+*/
 struct GPSStatus {
 	GPSStatus();
 
