@@ -74,9 +74,9 @@ sbas_corrected(false) {}
 GPSTime::GPSTime() :
 week_no(0),
 timing_flags(0),
-seconds(0),
-minutes(0),
-hours(0),
-day(0),
-month(0),
-year(0) {}
+Second(0),
+Minute(0),
+Hour(0),
+Day(0),
+Month(0),
+Year(0) {}

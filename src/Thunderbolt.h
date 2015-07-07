@@ -73,10 +73,10 @@ public:
 
 	bool flush();
 	bool isWatchdogExpired() {
-		return (millis() > _watchdog);
+		return (millis() > (uint32_t)_watchdog);
 	}
 
-	void registerFallback(RTCFallBack &fallback);
+	void registerFallback(RTCFallBack &fallback) { _fallBack = &fallback; };
 	bool processFallback();
 
 	bool getSoftwareVersionInfo();
@@ -85,15 +85,15 @@ public:
 	bool waitForPacket(ReportType type);
 	bool waitForPacketAndSubReport(ReportType haltCommand, SubReportID_8F haltSubCommand);
 
-	const GPSStatus& getStatus() const;
-	const GPSTime& getGPSTime() const;
-	const GPSVersion& getVersion() const;
-	const PosFix& getPositionFix() const;
-	const VelFix& getVelocityFix() const;
+	const GPSStatus& getStatus() const { return _status; };
+	const GPSTime& getGPSTime() const  {return _time; };
+	const GPSVersion& getVersion() const { return _version; };
+	const PosFix& getPositionFix() const { return _pfix; };
+	const VelFix& getVelocityFix() const { return _vfix; };
 
 	int  readDataBytes(uint8_t *dst, int n);
 
-	uint32_t getMilliSecondsPerSecond();
+	uint32_t getMilliSecondsPerSecond() { return _ms_per_second; };
 	uint32_t getSecondsSince1900Epoch();
 
 	void beginCommand(CommandID cmd);
@@ -113,11 +113,8 @@ public:
 
 	static bool isLeapYear(uint16_t year)
 	{
-		/* Check if the year is divisible by 4 or is divisible by 400 */
-		if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0))
-			return true;
-		else
-			return false;
+		// Leap year check: The year is (divisible by 4) and (not divisible by 100) or (divisible by 400)
+		return ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0));
 	}
 
 private:
@@ -143,7 +140,7 @@ private:
 	bool process_v_XYZ();
 	void inform_external_processors(bool isProcessed);
 	void update_FractionalSeconds();
-	void update_lastTimeUpdate(uint32_t tmrVal);
+	void update_pps_timestamp(uint32_t tmrVal);
 	void reset_GPS_watchdog();
 
 	GPSStatus	_status;
@@ -157,9 +154,9 @@ private:
 	RTCFallBack *_fallBack;
 
 	uint8_t _num_listeners;
-	uint32_t _fractionalSecondsSinceLastUpdate;
-	uint32_t _milliSecondsOfLastUpdate;
-	uint32_t _milliSecondsPerSecond;
+	uint32_t _fractional_seconds_since_last_time_stamp;
+	uint32_t _last_time_stamp;
+	uint32_t _ms_per_second;
 	time_t _watchdog;
 };
 

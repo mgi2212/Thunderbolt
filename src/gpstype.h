@@ -681,29 +681,29 @@ struct GPSTime {				// 8F.AB
 	uint16_t week_no;
 	int16_t utc_offs;			// signed int!
 	uint8_t timing_flags;
-	uint8_t seconds;
-	uint8_t minutes;
-	uint8_t hours;
-	uint8_t day;
-	uint8_t month;
-	uint16_t year;
+	uint8_t Second;
+	uint8_t Minute;
+	uint8_t Hour;
+	uint8_t Day;
+	uint8_t Month;
+	uint16_t Year;
 
 	bool operator ==(const GPSTime& x) {
-		return ((x.seconds == this->seconds) ||
-			(x.minutes == this->minutes) ||
-			(x.hours == this->hours) ||
-			(x.day == this->day) ||
-			(x.month == this->month) ||
-			(x.year == this->year));
+		return ((x.Second == this->Second) ||
+			(x.Minute == this->Minute) ||
+			(x.Hour == this->Hour) ||
+			(x.Day == this->Day) ||
+			(x.Month == this->Month) ||
+			(x.Year == this->Year));
 	}
 
 	bool operator !=(const GPSTime& x) {
-		return ((x.seconds != this->seconds) ||
-			(x.minutes != this->minutes) ||
-			(x.hours != this->hours) ||
-			(x.day != this->day) ||
-			(x.month != this->month) ||
-			(x.year != this->year));
+		return ((x.Second != this->Second) ||
+			(x.Minute != this->Minute) ||
+			(x.Hour != this->Hour) ||
+			(x.Day != this->Day) ||
+			(x.Month != this->Month) ||
+			(x.Year != this->Year));
 	}
 };
 

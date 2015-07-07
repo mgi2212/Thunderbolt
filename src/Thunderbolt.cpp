@@ -5,40 +5,32 @@
 Thunderbolt::Thunderbolt(Stream& _serial) :
 	_serial_stream(&_serial),
 	_num_listeners(0),
-	_fractionalSecondsSinceLastUpdate(0),
-	_milliSecondsOfLastUpdate(0),
-	_milliSecondsPerSecond(0)
+	_fractional_seconds_since_last_time_stamp(0),
+	_last_time_stamp(0),
+	_ms_per_second(0)
 {
 	// empty
 	_watchdog = 0;
 }
 
-uint32_t Thunderbolt::getMilliSecondsPerSecond() {
-	return _milliSecondsPerSecond;
-}
-
-void Thunderbolt::registerFallback(RTCFallBack &fallBack) {
-	_fallBack = &fallBack;
-}
-
 time_t Thunderbolt::getUnixTime() {
 		
 	TimeElements tm;
-	tm.Day = _time.day;
-	tm.Hour = _time.hours;
-	tm.Minute = _time.minutes;
-	tm.Month = _time.month;
-	tm.Second = _time.seconds;
-	tm.Year = _time.year - 1970;
+	tm.Day = _time.Day;
+	tm.Hour = _time.Hour;
+	tm.Minute = _time.Minute;
+	tm.Month = _time.Month;
+	tm.Second = _time.Second;
+	tm.Year = _time.Year - 1970;
 	return makeTime(tm);
 }
 
 bool Thunderbolt::processFallback() {
-	if (!_fallBack) 	{
+	if (!_fallBack) {
 		return false;
 	}
 
-	if (!isWatchdogExpired())	{
+	if (!isWatchdogExpired()) {
 		return false;
 	}
 
@@ -47,15 +39,16 @@ bool Thunderbolt::processFallback() {
 		uint16_t tmrValue = millis();
 		TimeElements tm;
 		breakTime(t, tm);
-		_time.seconds = tm.Second;
-		_time.minutes = tm.Minute;
-		_time.hours = tm.Hour;
-		_time.day = tm.Day;
-		_time.month = tm.Month;
-		_time.year = tm.Year + 1970;
-		update_lastTimeUpdate(tmrValue);
+		_time.Second = tm.Second;
+		_time.Minute = tm.Minute;
+		_time.Hour = tm.Hour;
+		_time.Day = tm.Day;
+		_time.Month = tm.Month;
+		_time.Year = tm.Year + 1970;
+		update_pps_timestamp(tmrValue);
 		return true;
 	}
+	return false;
 }
 
 
@@ -67,7 +60,7 @@ void Thunderbolt::now(uint32_t *secs, uint32_t *fract) {
 	update_FractionalSeconds();
 	if (fract)
 	{
-		*fract = _fractionalSecondsSinceLastUpdate;
+		*fract = _fractional_seconds_since_last_time_stamp;
 	}
 }
 
@@ -76,8 +69,8 @@ void Thunderbolt::update_FractionalSeconds(void)
 	// Calculate new fractional value based on system runtime
 	// since the Thunderbolt does not supply anything other than whole seconds.
 	uint32_t currTime = millis();
-	uint32_t millisecondDifference = currTime - _milliSecondsOfLastUpdate;
-	_fractionalSecondsSinceLastUpdate = (millisecondDifference % _milliSecondsPerSecond) * (0xFFFFFFFF / _milliSecondsPerSecond);
+	uint32_t millisecondDifference = currTime - _last_time_stamp;
+	_fractional_seconds_since_last_time_stamp = (millisecondDifference % _ms_per_second) * (0xFFFFFFFF / _ms_per_second);
 }
 
 void Thunderbolt::reset_GPS_watchdog() {
@@ -492,10 +485,10 @@ bool Thunderbolt::process_satellites()
 	return true;
 }
 
-void Thunderbolt::update_lastTimeUpdate(uint32_t tmrVal)  {
-	_milliSecondsPerSecond = (_milliSecondsPerSecond + (tmrVal - _milliSecondsOfLastUpdate)) / 2;
-	_fractionalSecondsSinceLastUpdate = 0;
-	_milliSecondsOfLastUpdate = tmrVal;
+void Thunderbolt::update_pps_timestamp(uint32_t tmrVal)  {
+	_ms_per_second = (_ms_per_second + (tmrVal - _last_time_stamp)) / 2;
+	_fractional_seconds_since_last_time_stamp = 0;
+	_last_time_stamp = tmrVal;
 }
 
 
@@ -509,13 +502,13 @@ bool Thunderbolt::process_time() {
 	_time.week_no = _rcv_packet.getNextWord();
 	_time.utc_offs = _rcv_packet.getNextWord();
 	_time.timing_flags = _rcv_packet.getNextByte();
-	_time.seconds = _rcv_packet.getNextByte();
-	_time.minutes = _rcv_packet.getNextByte();
-	_time.hours = _rcv_packet.getNextByte();
-	_time.day = _rcv_packet.getNextByte();
-	_time.month = _rcv_packet.getNextByte();
-	_time.year = _rcv_packet.getNextWord();
-	update_lastTimeUpdate(tmrVal);
+	_time.Second = _rcv_packet.getNextByte();
+	_time.Minute = _rcv_packet.getNextByte();
+	_time.Hour = _rcv_packet.getNextByte();
+	_time.Day = _rcv_packet.getNextByte();
+	_time.Month = _rcv_packet.getNextByte();
+	_time.Year = _rcv_packet.getNextWord();
+	update_pps_timestamp(tmrVal);
 
 	if (_fallBack) {
 		time_t t = _fallBack->getUnixTime();
@@ -657,44 +650,6 @@ bool Thunderbolt::process_sbas_status() {
 	return true;
 }
 
-/***************************
-* access                  *
-***************************/
-
-const GPSVersion& Thunderbolt::getVersion() const {
-	return _version;
-}
-
-/**
-* Get the status and health of the reciever.
-* If the unit has a GPS lock, `getStatus().health` will equal `HLTH_DOING_FIXES`.
-*/
-const GPSStatus& Thunderbolt::getStatus() const {
-	return _status;
-}
-
-/**
-* Get the most current position fix.
-*/
-const PosFix& Thunderbolt::getPositionFix() const {
-	return _pfix;
-}
-
-/**
-* Get the most current velocity fix.
-*/
-const VelFix& Thunderbolt::getVelocityFix() const {
-	return _vfix;
-}
-
-/**
-* Get the most recent GPS time report. For accurate current time,
-* this datum must be correlated with a PPS pulse signal.
-*/
-const GPSTime& Thunderbolt::getGPSTime() const {
-	return _time;
-}
-
 /**
 * Add a `GPSPacketProcessor` to be notified of incoming TSIP packets. At most
 * `MAX_PKT_PROCESSORS` (8) are supported at a time.
@@ -739,29 +694,29 @@ uint32_t Thunderbolt::getSecondsSince1900Epoch()
 	uint32_t returnValue = 0;
 	// Hours, minutes and regular seconds 
 	returnValue =
-		_time.seconds +
-		(_time.minutes * SECONDS_IN_MINUTE) +
-		(_time.hours * SECONDS_IN_MINUTE * MINUTES_IN_HOUR);
+		_time.Second +
+		(_time.Minute * SECONDS_IN_MINUTE) +
+		(_time.Hour * SECONDS_IN_MINUTE * MINUTES_IN_HOUR);
 
 	// Days, months and years accounting for past leap years and for different sized months.
 	uint32_t numDays = 0;
-	for (uint32_t currentYear = EPOCH_YEAR; currentYear < _time.year; currentYear++)
+	for (uint32_t currentYear = EPOCH_YEAR; currentYear < _time.Year; currentYear++)
 	{
 		if (isLeapYear(currentYear)) {
 			numDays++;
 		}
 	}
-	numDays += DAYS_IN_YEAR * (_time.year - EPOCH_YEAR);
+	numDays += DAYS_IN_YEAR * (_time.Year - EPOCH_YEAR);
 	// calculate elapsed days, current year using a table, don't count current month (it's not over yet)
 	// numDaysInMonths is zero-based
-	for (uint8_t idx = 0; idx < _time.month - 1; idx++)
+	for (uint8_t idx = 0; idx < _time.Month - 1; idx++)
 	{
 		numDays += numDaysInMonths[idx]; 
 	}
 	// add days for this month, not today as it's not over yet either!
-	numDays += _time.day - 1;
+	numDays += _time.Day - 1;
 	// account for current leap year if applicable
-	if (isLeapYear(_time.year) && (_time.month > 2)) {
+	if (isLeapYear(_time.Year) && (_time.Month > 2)) {
 		numDays++;
 	}
 	returnValue += numDays * SECONDS_IN_MINUTE * MINUTES_IN_HOUR * HOURS_IN_DAY;
