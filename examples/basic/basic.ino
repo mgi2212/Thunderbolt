@@ -39,7 +39,7 @@ void display_status(GPSStatus s) {
 // Display UTC time
 void displayTime(GPSTime t) {
 	char buf[20];
-	sprintf(buf, "time: %02d:%02d:%02d\n", t.hours, t.minutes, t.seconds);
+	sprintf(buf, "time: %02d:%02d:%02d\n", t.Hour, t.Minute, t.Second);
 	Serial.print(buf);
 }
 
