@@ -18,7 +18,7 @@ communicate.
 
 #include "utility\debughelp.h"
 #include <assert.h>
-#include <Time.h>
+#include "Time.h"
 #include "chunk.h"
 #include "gpstype.h"
 #include "TsipPacket.h"
